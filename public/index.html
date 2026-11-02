@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Riper</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div>
+      <h1>RIPER</h1>
+      <p id="tagline"></p>
+    </div>
+    <div class="top-actions">
+      <a id="donate-top" class="button donate" target="_blank" rel="noopener" hidden></a>
+      <button id="lang" type="button" class="ghost"></button>
+    </div>
+  </header>
+
+  <p id="beta-banner" class="beta-banner" hidden></p>
+
+  <main>
+    <section class="map-section">
+      <div class="map-head">
+        <p id="map-hint" class="hint"></p>
+        <p id="free-count" class="free-count"></p>
+      </div>
+      <div class="map-frame">
+        <div class="map-wrap"><canvas id="map" aria-label="Cemetery map"></canvas></div>
+        <div class="map-tools">
+          <button id="map-in" type="button" class="ghost" aria-label="Zoom in">+</button>
+          <button id="map-out" type="button" class="ghost" aria-label="Zoom out">−</button>
+        </div>
+      </div>
+      <form id="login" class="login">
+        <label for="code" id="have-code"></label>
+        <div class="row">
+          <input id="code" autocomplete="off" spellcheck="false">
+          <button id="enter" type="submit"></button>
+        </div>
+        <p id="login-error" class="error" role="alert"></p>
+      </form>
+    </section>
+    <aside id="panel" class="panel" aria-live="polite"></aside>
+  </main>
+
+  <dialog id="grave-dialog" class="grave-dialog">
+    <button id="grave-close" type="button" class="ghost grave-close" aria-label="Close">✕</button>
+    <div id="grave-body"></div>
+  </dialog>
+
+  <ul id="ticker" class="ticker" aria-label="Events"></ul>
+
+  <section id="how-section" class="how">
+    <h2 id="how-title"></h2>
+    <div id="how-steps" class="how-steps"></div>
+  </section>
+
+  <section class="levels">
+    <h2 id="levels-title"></h2>
+    <div id="level-cards" class="level-cards"></div>
+  </section>
+
+  <section id="donate-band" class="donate-band" hidden>
+    <div>
+      <h2 id="donate-title"></h2>
+      <p id="donate-note" class="hint"></p>
+    </div>
+    <a id="donate-link" class="button donate" target="_blank" rel="noopener"></a>
+  </section>
+
+  <footer class="foot">
+    <a id="terms-link" href="/terms"></a>
+    <a id="privacy-link" href="/privacy"></a>
+  </footer>
+</body>
+</html>

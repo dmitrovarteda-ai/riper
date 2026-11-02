@@ -1,0 +1,33 @@
+# Beta test on Render's free plan. Free services have no permanent disk, so the database
+# is rebuilt from the demo graves after every restart; /admin can download and restore a copy.
+services:
+  - type: web
+    name: riper
+    runtime: node
+    plan: free
+    buildCommand: echo "No dependencies to install"
+    startCommand: node --no-warnings scripts/seed-demo.js && node --no-warnings src/server.js
+    healthCheckPath: /api/config
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      - key: PUBLIC_URL
+        value: https://riper.onrender.com
+      - key: ADMIN_TOKEN
+        generateValue: true
+      - key: TRUST_PROXY
+        value: "1"
+      - key: DEV_PAYMENTS
+        value: "0"
+      - key: PAYMENT_MODE
+        value: boosty
+      - key: ORDERS_OPEN
+        value: "0"
+      - key: CRYPTS_OPEN
+        value: "0"
+      - key: DB_PATH
+        value: data/beta.db
+      - key: BOOSTY_URL
+        value: https://boosty.to/graveyard1

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Riper Admin</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="admin.js"></script>
+</head>
+<body>
+  <div class="admin">
+    <h1>Модерация</h1>
+    <form id="auth" class="login">
+      <label for="token">Токен администратора</label>
+      <div class="row">
+        <input id="token" type="password" autocomplete="off">
+        <button type="submit">Войти</button>
+      </div>
+    </form>
+    <p id="error" class="error" role="alert"></p>
+    <div id="queue"></div>
+  </div>
+</body>
+</html>
