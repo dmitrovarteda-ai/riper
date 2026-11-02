@@ -4,6 +4,7 @@ import { t, errorText, getLang, setLang } from './i18n.js';
 import { createMusic } from './music.js';
 import { createBandDialog, randomJoke } from './band.js';
 import { createWalker } from './walk.js';
+import { renderBoard } from './board.js';
 
 const $ = (id) => document.getElementById(id);
 const panel = $('panel');
@@ -113,6 +114,8 @@ function staticText() {
   panel.dataset.empty = t('panelHint');
   renderMusicLabels();
   renderWalkLabels();
+  $('nick-label').textContent = t('nickLabel');
+  $('nick-save').textContent = t('nickSave');
   $('how-title').textContent = t('howTitle');
   clear($('how-steps'), ...[1, 2, 3].map((step) => el('div', { className: 'how-step' },
     el('h3', { textContent: t(`how${step}Title`) }),
@@ -222,6 +225,14 @@ function showFeature(feature) {
       el('h2', { textContent: t('wellTip') }),
       joke,
       el('button', { type: 'button', className: 'ghost', textContent: t('wellMore'), on: { click: () => { joke.textContent = randomJoke(); } } }));
+  } else if (feature === 'board') {
+    const content = el('div', { className: 'board-view' });
+    clear(panel, el('h2', { textContent: t('boardTip') }), content);
+    api('/api/board').then((data) => renderBoard(content, data, 15)).catch(() => {});
+  } else if (feature === 'hut') {
+    clear(panel, el('h2', { textContent: t('hutTip') }), el('p', { textContent: t('hutText') }), el('p', { className: 'epitaph', textContent: randomJoke() }));
+  } else if (feature === 'hill') {
+    clear(panel, el('h2', { textContent: t('hillTip') }), el('p', { textContent: t('hillText') }));
   } else {
     clear(panel, el('h2', { textContent: t('pathTip') }), el('p', { textContent: t('pathText') }));
   }
@@ -438,7 +449,10 @@ const walker = createWalker({
   scene,
   api,
   getState: () => state,
+  diggerName: () => t('diggerName'),
   onNear: renderNear,
+  onRival: renderRival,
+  onLive: renderLive,
   onMove: (col, row) => {
     const [x, y] = scene.shareOf(col, row);
     mapWrap.scrollLeft = x * canvas.offsetWidth - mapWrap.clientWidth / 2;
@@ -457,6 +471,92 @@ function renderNear(index) {
     plot.grave?.epitaph ? el('p', { textContent: `« ${plot.grave.epitaph} »` }) : null,
     el('button', { type: 'button', textContent: t('walkOpen'), on: { click: () => showPlot(index) } }));
 }
+
+const MOVES = ['rock', 'paper', 'scissors'];
+let lastDuelKey = '';
+let nickShown = false;
+
+function moveButtons(onPick) {
+  return el('div', { className: 'options' }, ...MOVES.map((move) => el('button', {
+    type: 'button',
+    textContent: t(`move_${move}`),
+    on: { click: () => onPick(move) },
+  })));
+}
+
+function renderRival(rival) {
+  const box = $('rival');
+  box.hidden = !rival;
+  if (!rival) return;
+  const note = el('p', { className: 'error', role: 'alert' });
+  clear(box,
+    el('p', { textContent: t('duelChallenge', { nick: rival.nick }) }),
+    moveButtons(async (move) => {
+      try {
+        renderDuel(await api('/api/duel/challenge', { id: walker.id, target: rival.id, move }));
+        box.hidden = true;
+      } catch (err) {
+        note.textContent = errorText(err.code);
+      }
+    }),
+    note);
+}
+
+// Redrawn only when the duel changes, so the buttons don't vanish under the cursor on each report.
+function renderDuel(duel) {
+  const box = $('duel');
+  const key = duel ? `${duel.id}:${duel.mine}:${duel.result}` : '';
+  if (key === lastDuelKey) return;
+  lastDuelKey = key;
+  box.hidden = !duel;
+  if (!duel) return;
+  if (duel.result) {
+    const vars = { nick: duel.opponent, move: t(`move_${duel.theirs}`) };
+    clear(box, el('p', { textContent: t(duel.result === 'win' ? 'duelWin' : duel.result === 'lose' ? 'duelLose' : 'duelDraw', vars) }));
+  } else if (duel.mine) {
+    clear(box, el('p', { textContent: t('duelWaiting', { nick: duel.opponent }) }));
+  } else {
+    clear(box,
+      el('p', { textContent: t('duelIncoming', { nick: duel.opponent }) }),
+      moveButtons(async (move) => {
+        try {
+          renderDuel(await api('/api/duel/answer', { id: walker.id, duel: duel.id, move }));
+        } catch {
+          renderDuel(null);
+        }
+      }));
+  }
+}
+
+function renderLive(live) {
+  scene.setGhost(live.ghost);
+  $('ghost-alert').hidden = !live.ghost;
+  $('ghost-alert').textContent = t('ghostOnMap');
+  renderDuel(live.duel);
+  if (!live.you) return;
+  if (!nickShown) {
+    nickShown = true;
+    if (document.activeElement !== $('nick')) $('nick').value = live.you.nick;
+  }
+  $('nick').disabled = live.you.locked;
+  $('nick-save').disabled = live.you.locked;
+  if (live.you.locked) {
+    $('nick').value = live.you.nick;
+    $('nick-note').textContent = t('nickLocked');
+  }
+}
+
+$('nick-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    const { nick } = await api('/api/nick', { nick: $('nick').value });
+    walker.setNick(nick);
+    $('nick').value = nick;
+    $('nick-note').textContent = t('nickSaved', { nick });
+  } catch (err) {
+    $('nick-note').textContent = errorText(err.code);
+  }
+});
 
 function renderWalkLabels() {
   $('walk').textContent = walker.walking ? t('walkStop') : t('walkStart');

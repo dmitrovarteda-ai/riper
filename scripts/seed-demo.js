@@ -22,7 +22,7 @@ export const DEMO_GRAVES = [
     items: [{ type: 'pebble', x: 15, y: 6 }],
   },
   {
-    plot: at(6, 5), name: 'Последний сэйв', epitaph: 'Забыл сохраниться', style: 'cross', color: 'rose', fence: false, stage: 1,
+    plot: at(5, 5), name: 'Последний сэйв', epitaph: 'Забыл сохраниться', style: 'cross', color: 'rose', fence: false, stage: 1,
     items: [{ type: 'pumpkin', x: 15, y: 5 }, { type: 'raven', x: -16, y: 2 }],
   },
   {

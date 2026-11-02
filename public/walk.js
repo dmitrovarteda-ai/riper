@@ -2,11 +2,16 @@ import { chubrikColor, CHUBRIK_COUNT } from './render.js';
 
 const WALK_SPEED = 2.6;
 const STROLL_SPEED = 0.7;
+const DIGGER_SPEED = 0.8;
 const SMOOTHING = 4;
 const NEAR_DISTANCE = 0.85;
-const WALKING_REPORT_MS = 1500;
+const RIVAL_DISTANCE = 1.4;
+const WALKING_REPORT_MS = 1200;
 const STROLL_REPORT_MS = 4000;
-const SOLID_FEATURES = new Set(['stage', 'shop', 'well']);
+const DUEL_REPORT_MS = 1000;
+const ID_KEY = 'riperVisitor';
+const NICK_KEY = 'riperNick';
+const SOLID_FEATURES = new Set(['stage', 'shop', 'well', 'hut', 'board']);
 const GRAVE_RADIUS = 0.3;
 // Screen directions on an isometric map: "up" means both axes shrink, "right" moves along col and against row.
 const KEY_DIRECTIONS = {
@@ -15,6 +20,32 @@ const KEY_DIRECTIONS = {
   a: [-1, 1], arrowleft: [-1, 1], ф: [-1, 1],
   d: [1, -1], arrowright: [1, -1], в: [1, -1],
 };
+// The gravedigger's rounds as col, row and how many seconds he works at that spot.
+const DIGGER_ROUTE = [
+  [3.5, 8, 8], [6.5, 8, 0], [6.5, 6.5, 0], [9.5, 6.5, 7], [9.5, 3.5, 7], [7, 3.5, 0], [7, 0.5, 8], [7, 3.5, 0],
+  [4.5, 3.5, 7], [4.5, 4, 0], [0.5, 4, 7], [5.5, 4, 0], [5.5, 6.5, 7], [6.5, 6.5, 0], [6.5, 8, 0],
+];
+
+const legs = DIGGER_ROUTE.map((from, index) => {
+  const to = DIGGER_ROUTE[(index + 1) % DIGGER_ROUTE.length];
+  return { from, to, walk: Math.hypot(to[0] - from[0], to[1] - from[1]) / DIGGER_SPEED, stay: from[2] };
+});
+const ROUND_SECONDS = legs.reduce((sum, leg) => sum + leg.stay + leg.walk, 0);
+
+// Worked out from the clock alone, so every viewer and the stream see him in about the same place.
+export function diggerAt(timeMs, name) {
+  let left = (timeMs / 1000) % ROUND_SECONDS;
+  for (const { from, to, walk, stay } of legs) {
+    if (left < stay) return { id: 'digger', digger: true, c: from[0], r: from[1], moving: false, nick: name };
+    left -= stay;
+    if (left < walk) {
+      const share = left / walk;
+      return { id: 'digger', digger: true, c: from[0] + (to[0] - from[0]) * share, r: from[1] + (to[1] - from[1]) * share, moving: true, nick: name };
+    }
+    left -= walk;
+  }
+  return { id: 'digger', digger: true, c: DIGGER_ROUTE[0][0], r: DIGGER_ROUTE[0][1], moving: false, nick: name };
+}
 
 const colorOf = (id) => {
   let sum = 0;
@@ -22,17 +53,29 @@ const colorOf = (id) => {
   return chubrikColor(sum % CHUBRIK_COUNT);
 };
 
+function stored(key, make) {
+  try {
+    const value = localStorage.getItem(key);
+    if (value) return value;
+    const fresh = make();
+    if (fresh) localStorage.setItem(key, fresh);
+    return fresh;
+  } catch {
+    return make();
+  }
+}
+
 // Other visitors arrive every few seconds; between reports they glide instead of jumping.
 export function createCrowd() {
   const people = new Map();
   return {
     update(list) {
       const seen = new Set();
-      for (const { id, c, r } of list) {
+      for (const { id, c, r, nick } of list) {
         seen.add(id);
         const person = people.get(id);
-        if (person) Object.assign(person, { tc: c, tr: r });
-        else people.set(id, { id, c, r, tc: c, tr: r, color: colorOf(id), phase: c * 3, moving: false, me: false });
+        if (person) Object.assign(person, { tc: c, tr: r, nick });
+        else people.set(id, { id, c, r, tc: c, tr: r, nick, color: colorOf(id), phase: c * 3, moving: false, me: false });
       }
       for (const id of people.keys()) if (!seen.has(id)) people.delete(id);
     },
@@ -51,16 +94,21 @@ export function createCrowd() {
 }
 
 // This visitor's own chubrik: it strolls by itself until the person takes over with the keyboard.
-export function createWalker({ scene, api, getState, onNear, onMove }) {
-  const id = Array.from(crypto.getRandomValues(new Uint8Array(6)), (byte) => byte.toString(36).padStart(2, '0')).join('').slice(0, 12);
+export function createWalker({ scene, api, getState, diggerName, onNear, onMove, onLive, onRival }) {
+  const makeId = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), (byte) => byte.toString(36).padStart(2, '0')).join('').slice(0, 12);
+  const id = stored(ID_KEY, makeId);
   const crowd = createCrowd();
-  const me = { id, c: 7, r: 7, color: colorOf(id), phase: 0, moving: false, me: false };
+  const me = { id, c: 7, r: 9, color: colorOf(id), phase: 0, moving: false, me: false, nick: null };
   const keys = new Set();
+  let wantedNick = stored(NICK_KEY, () => null);
   let walking = false;
   let target = null;
   let lastFrame = performance.now();
-  let lastReport = 0;
+  let lastReport = -Infinity;
   let nearPlot = null;
+  let rival = null;
+  let inDuel = false;
+  let people = [];
 
   function plotAt(c, r) {
     const state = getState();
@@ -87,7 +135,7 @@ export function createWalker({ scene, api, getState, onNear, onMove }) {
   }
 
   function pickTarget() {
-    const paths = getState()?.plots.filter((plot) => plot.feature === 'path') ?? [];
+    const paths = getState()?.plots.filter((plot) => plot.feature === 'path' || plot.feature === 'hill') ?? [];
     const plot = paths[Math.floor(Math.random() * paths.length)];
     if (!plot) return null;
     const { cols } = getState().grid;
@@ -144,13 +192,29 @@ export function createWalker({ scene, api, getState, onNear, onMove }) {
     return best;
   }
 
+  function findRival() {
+    let best = null;
+    let bestDistance = RIVAL_DISTANCE;
+    for (const person of people) {
+      const distance = Math.hypot(person.c - me.c, person.r - me.r);
+      if (distance < bestDistance) {
+        best = person;
+        bestDistance = distance;
+      }
+    }
+    return best;
+  }
+
   async function report(time) {
-    const every = walking ? WALKING_REPORT_MS : STROLL_REPORT_MS;
+    const every = inDuel ? DUEL_REPORT_MS : walking ? WALKING_REPORT_MS : STROLL_REPORT_MS;
     if (document.hidden || time - lastReport < every) return;
     lastReport = time;
     try {
-      const { visitors } = await api('/api/live', { id, c: me.c, r: me.r });
-      crowd.update(visitors);
+      const live = await api('/api/live', { id, c: me.c, r: me.r, nick: wantedNick, walking });
+      crowd.update(live.visitors);
+      if (live.you) me.nick = live.you.nick;
+      inDuel = !!live.duel;
+      onLive(live);
     } catch {
       // A missed report only makes the other visitors stand still for a moment.
     }
@@ -162,7 +226,8 @@ export function createWalker({ scene, api, getState, onNear, onMove }) {
     lastFrame = time;
     me.moving = walking ? walk(dt) : stroll(dt);
     me.me = walking;
-    scene.setVisitors([...crowd.tick(dt), me]);
+    people = crowd.tick(dt);
+    scene.setVisitors([...people, me, diggerAt(Date.now(), diggerName())]);
     report(time);
     if (walking) {
       if (me.moving) onMove(me.c, me.r);
@@ -170,6 +235,11 @@ export function createWalker({ scene, api, getState, onNear, onMove }) {
       if (near !== nearPlot) {
         nearPlot = near;
         onNear(near);
+      }
+      const nextRival = findRival();
+      if (nextRival?.id !== rival?.id) {
+        rival = nextRival;
+        onRival(rival);
       }
     }
   }
@@ -189,11 +259,15 @@ export function createWalker({ scene, api, getState, onNear, onMove }) {
   window.addEventListener('blur', () => keys.clear());
 
   return {
+    id,
     get walking() {
       return walking;
     },
     get nearPlot() {
       return nearPlot;
+    },
+    get nick() {
+      return me.nick;
     },
     isTyping: typing,
     setWalking(on) {
@@ -201,8 +275,17 @@ export function createWalker({ scene, api, getState, onNear, onMove }) {
       keys.clear();
       target = null;
       nearPlot = null;
+      rival = null;
       onNear(null);
+      onRival(null);
       if (on) onMove(me.c, me.r);
+    },
+    setNick(nick) {
+      wantedNick = nick;
+      me.nick = nick;
+      try {
+        localStorage.setItem(NICK_KEY, nick);
+      } catch {}
     },
     press(key, down) {
       if (down) keys.add(key);

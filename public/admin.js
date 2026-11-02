@@ -55,24 +55,24 @@ function giftNotice() {
 function backupSection() {
   const section = document.createElement('section');
   const title = document.createElement('h2');
-  title.textContent = 'Копия кладбища';
+  title.textContent = 'Сезон кладбища';
   const note = Object.assign(document.createElement('p'), {
     className: 'small',
-    textContent: 'На бесплатном хостинге кладбище сбрасывается к демо-могилам после перезапуска. Скачивайте копию после изменений и загружайте её, если всё сбросилось.',
+    textContent: 'На бесплатном хостинге после перезапуска всё сбрасывается. В конце стрима нажимайте «Сохранить сезон»: в файл попадут могилы, доска, очки и рекорды. Перед следующим стримом загрузите его обратно.',
   });
   const file = Object.assign(document.createElement('input'), { type: 'file', accept: 'application/json' });
   const row = Object.assign(document.createElement('div'), { className: 'row' });
-  row.append(button('Скачать копию', async () => {
+  row.append(button('Сохранить сезон', async () => {
     const copy = await api('/api/admin/export');
     const link = Object.assign(document.createElement('a'), {
       href: URL.createObjectURL(new Blob([JSON.stringify(copy)], { type: 'application/json' })),
-      download: `riper-copy-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.json`,
+      download: `riper-season-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.json`,
     });
     link.click();
     URL.revokeObjectURL(link.href);
-  }), file, button('Восстановить из файла', async () => {
-    if (!file.files[0]) throw new Error('Сначала выберите файл копии');
-    if (confirm('Заменить всё кладбище содержимым этого файла?')) await api('/api/admin/import', JSON.parse(await file.files[0].text()));
+  }), file, button('Загрузить сезон', async () => {
+    if (!file.files[0]) throw new Error('Сначала выберите файл сезона');
+    if (confirm('Заменить всё кладбище, доску и очки содержимым этого файла?')) await api('/api/admin/import', JSON.parse(await file.files[0].text()));
   }));
   section.append(title, note, row);
   return section;
@@ -109,7 +109,27 @@ function createSection() {
   return section;
 }
 
-function streamSection(spotlight, streamOnline) {
+function onlineSection(online) {
+  return table('Сейчас на кладбище', ['Ник', ''], online.map((visitor) => [
+    visitor.nick,
+    [visitor.locked ? 'ник сброшен' : button('Сбросить ник', () => api('/api/admin/reset-nick', { id: visitor.id }))],
+  ]));
+}
+
+function boardSection(board) {
+  const section = document.createElement('section');
+  const title = document.createElement('h2');
+  title.textContent = 'Доска объявлений';
+  const text = input('Ваше объявление, до 120 символов', '', 120);
+  const row = Object.assign(document.createElement('div'), { className: 'row' });
+  row.append(text, button('Опубликовать', () => api('/api/admin/board-note', { text: text.value })));
+  section.append(title, row);
+  const describe = (entry) => (entry.kind === 'note' ? entry.text : entry.kind === 'ghost' ? `${entry.nick} поймал(а) призрака` : entry.kind === 'duel' ? `${entry.nick} победил(а) ${entry.other}` : `${entry.nick}: рекорд ${entry.minutes} мин`);
+  section.append(table('Записи', ['Запись', ''], board.entries.map((entry) => [describe(entry), [button('Убрать', () => api('/api/admin/board-remove', { at: entry.at }))]])));
+  return section;
+}
+
+function streamSection(spotlight, streamOnline, autoshow) {
   const section = document.createElement('section');
   const title = document.createElement('h2');
   title.textContent = 'Эфир';
@@ -122,14 +142,26 @@ function streamSection(spotlight, streamOnline) {
   const note = Object.assign(document.createElement('p'), {
     className: 'small',
     textContent: spotlight === 'band'
-      ? 'Сейчас в эфире группа на весь экран.'
-      : spotlight === null
-        ? 'Могилы сменяются сами. Закрепить одну можно кнопкой в списке могил ниже.'
-        : `Сейчас в эфире закреплено место №${spotlight + 1}.`,
+      ? 'Сейчас в эфире вручную: группа.'
+      : spotlight === 'board'
+        ? 'Сейчас в эфире вручную: доска объявлений.'
+        : spotlight === 'follow'
+          ? 'Сейчас в эфире вручную: камера следит за игроком.'
+          : spotlight !== null
+            ? `Сейчас в эфире вручную: место №${spotlight + 1}.`
+            : autoshow
+              ? 'Идёт автопоказ: могила 30 с, кладбище 1 мин, группа 30 с, кладбище 1 мин, следующая могила. Вторую половину минуты камера следит за игроком, а когда есть события, 20 с показывается доска.'
+              : 'Автопоказ выключен, в эфире кладбище. Могила или группа появятся только по вашей кнопке.',
   });
   const row = Object.assign(document.createElement('div'), { className: 'row' });
-  row.append(button(spotlight === 'band' ? 'Убрать группу' : 'Показать группу на весь экран', () => api('/api/admin/spotlight', { plot: spotlight === 'band' ? null : 'band' })));
-  if (spotlight !== null) row.append(button('Вернуть автосмену могил', () => api('/api/admin/spotlight', { plot: null })));
+  const manual = (label, value) => button(spotlight === value ? `Убрать: ${label}` : `Показать: ${label}`, () => api('/api/admin/spotlight', { plot: spotlight === value ? null : value }));
+  row.append(
+    button(autoshow ? 'Автопоказ: выключить' : 'Автопоказ: включить', () => api('/api/admin/autoshow', { on: !autoshow })),
+    manual('группа', 'band'),
+    manual('камера за игроком', 'follow'),
+    manual('доска', 'board'),
+  );
+  if (spotlight !== null) row.append(button('Снять ручной показ', () => api('/api/admin/spotlight', { plot: null })));
   section.append(title, link, note, row);
   return section;
 }
@@ -185,13 +217,17 @@ function table(title, headers, rows) {
 
 async function load() {
   const queue = await api('/api/admin/queue');
-  const { spotlight, streamOnline } = await api('/api/live');
+  const { spotlight, streamOnline, autoshow } = await api('/api/live');
+  const online = await api('/api/admin/online');
+  const board = await api('/api/board');
   $('auth').hidden = true;
   $('error').textContent = '';
   $('queue').replaceChildren(
     giftNotice(),
-    streamSection(spotlight, streamOnline),
+    streamSection(spotlight, streamOnline, autoshow),
     backupSection(),
+    boardSection(board),
+    onlineSection(online),
     cryptSection(queue.crypts),
     createSection(),
     graveSection(queue.allGraves, spotlight),

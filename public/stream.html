@@ -7,7 +7,8 @@
   <script type="module" src="stream.js"></script>
 </head>
 <body class="stream">
-  <div class="stream-map"><canvas id="map"></canvas></div>
+  <div id="map-box" class="stream-map"><canvas id="map"></canvas></div>
+  <div id="camera-caption" class="camera-caption"></div>
   <div class="stream-side">
     <div class="stream-focus">
       <canvas id="focus"></canvas>
@@ -24,6 +25,10 @@
   <div id="band-screen" class="band-screen band-stage" hidden>
     <canvas id="band-canvas"></canvas>
     <div id="band-bubbles" class="band-bubbles"></div>
+  </div>
+  <div id="board-screen" class="board-screen" hidden>
+    <h2 id="board-title"></h2>
+    <div id="board-content" class="board-view"></div>
   </div>
 </body>
 </html>

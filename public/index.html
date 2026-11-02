@@ -34,7 +34,12 @@
           <button id="map-in" type="button" class="ghost" aria-label="Zoom in">+</button>
           <button id="map-out" type="button" class="ghost" aria-label="Zoom out">−</button>
         </div>
-        <div id="near" class="near" hidden></div>
+        <div id="ghost-alert" class="ghost-alert" hidden></div>
+        <div class="near-stack">
+          <div id="near" class="near" hidden></div>
+          <div id="rival" class="near" hidden></div>
+          <div id="duel" class="near duel" hidden></div>
+        </div>
         <div id="walk-pad" class="walk-pad" hidden>
           <button type="button" class="ghost" data-key="arrowup" aria-label="Up">▲</button>
           <button type="button" class="ghost" data-key="arrowleft" aria-label="Left">◀</button>
@@ -46,6 +51,14 @@
         <button id="walk" type="button"></button>
         <p id="walk-hint" class="small" hidden></p>
       </div>
+      <form id="nick-form" class="login">
+        <label for="nick" id="nick-label"></label>
+        <div class="row">
+          <input id="nick" maxlength="20" autocomplete="off" spellcheck="false">
+          <button id="nick-save" type="submit" class="ghost"></button>
+        </div>
+        <p id="nick-note" class="small" role="status"></p>
+      </form>
       <form id="login" class="login">
         <label for="code" id="have-code"></label>
         <div class="row">

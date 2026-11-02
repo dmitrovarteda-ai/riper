@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { createHash, randomBytes, randomInt } from 'node:crypto';
 
-export const GRID = { cols: 15, rows: 8 };
+export const GRID = { cols: 15, rows: 11 };
 export const CURRENCY = 'rub';
 // Monthly subscription levels; each includes everything from the level below it.
 export const PRODUCTS = {
@@ -120,14 +120,17 @@ export function adZoneOf(plot) {
 }
 
 // Tiles that belong to the cemetery itself: alleys, the band's stage and the special places.
-export const STAGE = { col: 6, row: 3, cols: 3, rows: 2 };
+export const STAGE = { col: 6, row: 4, cols: 3, rows: 2 };
 export function featureOf(plot) {
   const col = plot % GRID.cols;
   const row = Math.floor(plot / GRID.cols);
   if (col >= STAGE.col && col < STAGE.col + STAGE.cols && row >= STAGE.row && row < STAGE.row + STAGE.rows) return 'stage';
   if (col === 8 && row === 6) return 'shop';
   if (col === 6 && row === 6) return 'well';
-  return col === 7 || row === 4 ? 'path' : null;
+  if (col === 8 && row === 9) return 'board';
+  if (col === 2 && row === 9) return 'hut';
+  if (col <= 5 && row >= 9) return 'hill';
+  return col === 7 || row === 4 || row === 8 ? 'path' : null;
 }
 
 export function isCenter(plot) {

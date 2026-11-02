@@ -3,7 +3,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import { timingSafeEqual, createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { UserError, GRID, PRODUCTS, CURRENCY, CHECKOUT_MS, COLORS, STYLES, ITEMS, ITEM_LIMITS, FENCE_MIN_TIER, EPITAPH_MIN_TIER } from './core.js';
+import { createGames } from './games.js';
+import { UserError, PRODUCTS, CURRENCY, CHECKOUT_MS, COLORS, STYLES, ITEMS, ITEM_LIMITS, FENCE_MIN_TIER, EPITAPH_MIN_TIER } from './core.js';
 import { verifyWebhook } from './stripe.js';
 
 const PUBLIC_DIR = fileURLToPath(new URL('../public/', import.meta.url));
@@ -11,9 +12,8 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; cha
 const MAX_BODY = 16 * 1024;
 const MAX_WEBHOOK_BODY = 256 * 1024;
 const MAX_BACKUP_BODY = 2 * 1024 * 1024;
-const VISITOR_TTL_MS = 12_000;
-const MAX_VISITORS = 200;
 const STREAM_ONLINE_MS = 10_000;
+const STREAM_VIEWS = ['band', 'board', 'follow'];
 const ROUTES = { '/': 'index.html', '/stream': 'stream.html', '/admin': 'admin.html', '/terms': 'terms.html', '/privacy': 'privacy.html' };
 const SECURITY_HEADERS = {
   'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; frame-ancestors 'self'; base-uri 'none'; form-action 'self'",
@@ -88,21 +88,17 @@ export function createApp(core, { adminToken = '', stripe = null, boostyUrls = n
     order: rateLimiter(10, 60_000, now),
     report: rateLimiter(5, 60_000, now),
     live: rateLimiter(120, 60_000, now),
+    game: rateLimiter(40, 60_000, now),
   };
-  // Kept in memory only: a random id per open tab and a spot on the map, nothing about the person.
-  const visitors = new Map();
+  // Kept in memory only: a random id per browser and a spot on the map, nothing about the person.
+  const games = createGames({ now });
   let spotlight = null;
+  let autoshow = true;
   let streamSeen = 0;
   // Changes with every restart, so an open stream page knows to load the new version.
   const build = String(now());
 
-  function liveJson(ownId = null) {
-    const at = now();
-    for (const [id, visitor] of visitors) if (at - visitor.seen > VISITOR_TTL_MS) visitors.delete(id);
-    const list = [];
-    for (const [id, visitor] of visitors) if (id !== ownId) list.push({ id, c: visitor.c, r: visitor.r });
-    return { visitors: list, spotlight, build, streamOnline: at - streamSeen < STREAM_ONLINE_MS };
-  }
+  const streamState = () => ({ spotlight, autoshow, build, streamOnline: now() - streamSeen < STREAM_ONLINE_MS });
   let cachedState = null;
   let cachedAt = 0;
 
@@ -202,16 +198,31 @@ export function createApp(core, { adminToken = '', stripe = null, boostyUrls = n
     }
     if (method === 'GET' && path === '/api/live') {
       if (new URL(req.url, 'http://local').searchParams.has('stream')) streamSeen = now();
-      send(res, 200, liveJson());
+      send(res, 200, { ...games.live(), ...streamState() });
       return;
     }
     if (method === 'POST' && path === '/api/live') {
       limits.live.check(ip);
-      const { id, c, r } = await readJson(req);
-      const valid = /^[a-z0-9]{8,16}$/.test(String(id)) && Number.isFinite(c) && Number.isFinite(r) && c >= -1 && r >= -1 && c <= GRID.cols && r <= GRID.rows;
-      if (!valid) throw new UserError('bad_option');
-      if (visitors.has(id) || visitors.size < MAX_VISITORS) visitors.set(id, { c: Math.round(c * 100) / 100, r: Math.round(r * 100) / 100, seen: now() });
-      send(res, 200, liveJson(id));
+      send(res, 200, { ...games.report(await readJson(req)), ...streamState() });
+      return;
+    }
+    if (method === 'GET' && path === '/api/board') {
+      send(res, 200, games.board());
+      return;
+    }
+    if (method === 'POST' && path === '/api/nick') {
+      limits.game.check(ip);
+      send(res, 200, { nick: games.checkNick((await readJson(req)).nick) });
+      return;
+    }
+    if (method === 'POST' && path === '/api/duel/challenge') {
+      limits.game.check(ip);
+      send(res, 200, games.challenge(await readJson(req)));
+      return;
+    }
+    if (method === 'POST' && path === '/api/duel/answer') {
+      limits.game.check(ip);
+      send(res, 200, games.answer(await readJson(req)));
       return;
     }
     if (method === 'GET' && path === '/api/events') {
@@ -319,11 +330,18 @@ export function createApp(core, { adminToken = '', stripe = null, boostyUrls = n
         return;
       }
       if (method === 'GET' && path === '/api/admin/export') {
-        send(res, 200, core.admin.exportGraves());
+        send(res, 200, { ...core.admin.exportGraves(), season: games.snapshot() });
+        return;
+      }
+      if (method === 'GET' && path === '/api/admin/online') {
+        send(res, 200, games.online());
         return;
       }
       if (method === 'POST' && path === '/api/admin/import') {
-        send(res, 200, { count: core.admin.importGraves(await readJson(req, MAX_BACKUP_BODY)) });
+        const copy = await readJson(req, MAX_BACKUP_BODY);
+        const count = core.admin.importGraves(copy);
+        games.restore(copy.season);
+        send(res, 200, { count });
         return;
       }
       if (method === 'POST') {
@@ -333,11 +351,28 @@ export function createApp(core, { adminToken = '', stripe = null, boostyUrls = n
           return;
         }
         if (path === '/api/admin/spotlight') {
-          // A grave number, 'band' for the skeletons on the whole screen, or null for taking turns.
-          const plot = body.plot === null || body.plot === 'band' ? body.plot : Number(body.plot);
+          // A grave number, one of the full-screen views, or null to give the screen back to the autoshow.
+          const plot = body.plot === null || STREAM_VIEWS.includes(body.plot) ? body.plot : Number(body.plot);
           if (typeof plot === 'number' && !core.state().plots[plot]?.grave) throw new UserError('not_found', 404);
           spotlight = plot;
           send(res, 200, { spotlight });
+          return;
+        }
+        if (path === '/api/admin/autoshow') {
+          autoshow = body.on === true;
+          send(res, 200, { autoshow });
+          return;
+        }
+        if (path === '/api/admin/reset-nick') {
+          send(res, 200, { ok: games.resetNick(body.id) });
+          return;
+        }
+        if (path === '/api/admin/board-note') {
+          send(res, 200, { ok: games.addNote(body.text) });
+          return;
+        }
+        if (path === '/api/admin/board-remove') {
+          send(res, 200, { ok: games.removeEntry(body.at) });
           return;
         }
         if (path === '/api/admin/grave-create') {

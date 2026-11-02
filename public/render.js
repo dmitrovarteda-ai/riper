@@ -452,7 +452,9 @@ function drawAdZone(ctx, cx, cy, label) {
 }
 
 // The band's place on the map, in tile coordinates, and each player's spot on the stage.
-const BAND_CENTER = [7, 3.5];
+const BAND_CENTER = [7, 4.5];
+const HILL_HEIGHT = 8;
+const HILL_FEATURES = new Set(['hill', 'hut']);
 const BAND_SPOTS = [[-0.75, 0.75, 'guitar'], [-0.6, 0.15, 'drums'], [0.1, 0.1, 'singer'], [0.25, -0.5, 'bass'], [0.75, -0.75, 'organ']];
 const STAGE_HEIGHT = 6;
 
@@ -468,6 +470,38 @@ function drawShop(ctx, cx, cy) {
   rect(ctx, cx - 5, cy - 19, 10, 2, '#f6d271');
   rect(ctx, cx + 12, cy - 5, 2, 9, '#c3c6d4');
   rect(ctx, cx + 10, cy - 3, 6, 2, '#c3c6d4');
+}
+
+// A raised green block with the gravedigger's hut and an old tree on it.
+function drawHill(ctx, layout) {
+  const [cx, cy] = tileCenter(layout, 2.5, 9.5);
+  box(ctx, cx, cy + HILL_HEIGHT, 27, 18, HILL_HEIGHT, 0, ['#4f8f5c', '#4a3527', '#35261c']);
+  const [hx, hy] = tileCenter(layout, 2, 9);
+  const z = HILL_HEIGHT;
+  box(ctx, hx, hy, 7, 7, 13, z, ['#6b4a2c', '#5d3f27', '#49301d']);
+  box(ctx, hx, hy, 9, 9, 2, z + 13, ['#3f3a4f', '#2f2b3c', '#232030']);
+  box(ctx, hx, hy, 6, 6, 3, z + 15, ['#4a4560', '#35304a', '#262238']);
+  box(ctx, hx, hy, 2, 2, 3, z + 18, ['#4a4560', '#35304a', '#262238']);
+  box(ctx, hx + 10, hy - 4, 0.75, 0.75, 7, z + 16, ['#6d6e7c', '#585968', '#454654']);
+  rect(ctx, hx - 19, hy - z - 8, 6, 9, '#2a1d14');
+  rect(ctx, hx + 8, hy - z - 8, 5, 4, '#ffd98a');
+  const [tx, ty] = tileCenter(layout, 4.3, 10);
+  drawTree(ctx, tx, ty - z, 7);
+  const [gx, gy] = tileCenter(layout, 0.8, 10.1);
+  box(ctx, gx, gy - z, 1, 0.75, 7, 0, STONE[2]);
+  rect(ctx, gx - 3, gy - z - 5, 6, 1, STONE[2][0]);
+}
+
+function drawBoard(ctx, cx, cy) {
+  rect(ctx, cx - 10, cy - 16, 2, 17, '#4a3a30');
+  rect(ctx, cx + 8, cy - 16, 2, 17, '#4a3a30');
+  rect(ctx, cx - 13, cy - 20, 26, 14, '#7a5636');
+  rect(ctx, cx - 14, cy - 21, 28, 2, '#49301d');
+  rect(ctx, cx - 11, cy - 18, 7, 8, '#f2f1ea');
+  rect(ctx, cx - 2, cy - 17, 6, 5, '#f6d271');
+  rect(ctx, cx + 6, cy - 18, 5, 9, '#e8a0b8');
+  rect(ctx, cx - 10, cy - 16, 5, 1, '#6d7084');
+  rect(ctx, cx - 10, cy - 14, 4, 1, '#6d7084');
 }
 
 function drawWell(ctx, cx, cy) {
@@ -552,6 +586,49 @@ function drawChubrik(ctx, x, y, time, { color, moving, me, phase = 0 }) {
     rect(ctx, x - 1, y - 17 - lift, 3, 1, '#ffe27a');
     rect(ctx, x, y - 16 - lift, 1, 1, '#ffe27a');
   }
+}
+
+// The cemetery's gravedigger: a tall hat, a long coat and a shovel that digs while he stands still.
+function drawDigger(ctx, x, y, time, { moving }) {
+  const step = moving ? Math.floor(time / 170) % 2 : 0;
+  const dig = moving ? 0 : Math.floor(time / 450) % 2;
+  rect(ctx, x - 3, y, 8, 1, 'rgba(0, 0, 0, 0.35)');
+  rect(ctx, x - 2, y - 3 + step, 2, 3 - step, '#1d1f28');
+  rect(ctx, x + 1, y - 3 + (moving ? 1 - step : 0), 2, moving ? 2 + step : 3, '#1d1f28');
+  rect(ctx, x - 3, y - 10, 7, 7, '#4b3a2e');
+  rect(ctx, x, y - 10, 1, 7, '#2f241c');
+  rect(ctx, x - 2, y - 14, 5, 4, '#d9c2a0');
+  rect(ctx, x - 1, y - 12, 1, 1, BONE_DARK);
+  rect(ctx, x + 1, y - 12, 1, 1, BONE_DARK);
+  rect(ctx, x - 4, y - 15, 9, 1, '#1d1f28');
+  rect(ctx, x - 2, y - 19, 5, 4, '#1d1f28');
+  rect(ctx, x + 6, y - 13 + dig * 2, 1, 12, '#8a6728');
+  rect(ctx, x + 5, y - 2 + dig * 2, 3, 3, '#8d90a3');
+  rect(ctx, x + 4, y - 8 + dig, 2, 1, '#d9c2a0');
+}
+
+function drawHuntedGhost(ctx, x, y, time) {
+  const glow = 0.2 + Math.sin(time / 240) * 0.08;
+  ctx.fillStyle = `rgba(160, 240, 255, ${glow})`;
+  for (let dy = -14; dy <= 14; dy++) {
+    const half = Math.round(Math.sqrt(196 - dy * dy) * 1.4);
+    ctx.fillRect(Math.round(x - half), Math.round(y - 14 + dy), half * 2, 1);
+  }
+  ctx.save();
+  ctx.scale(2, 2);
+  drawGhost(ctx, Math.round(x / 2), Math.round((y + Math.sin(time / 400) * 3) / 2) - 2);
+  ctx.restore();
+}
+
+function drawNick(ctx, x, y, nick, me) {
+  ctx.font = '600 9px system-ui, "Segoe UI", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(8, 10, 22, 0.9)';
+  ctx.strokeText(nick, x, y);
+  ctx.fillStyle = me ? '#ffe27a' : '#f2f1ea';
+  ctx.fillText(nick, x, y);
 }
 
 function drawTree(ctx, x, y, seed) {
@@ -658,11 +735,13 @@ function drawWorld(ctx, layout, state, adLabel) {
         drawAdZone(ctx, zx, zy, state.plots[zone.row * cols + zone.col].grave?.name || adLabel);
       }
     } else if (plot.feature) {
-      diamond(ctx, cx, cy, TILE_P, TILE_P, ['#8b8069', '#74694f'], plot.plot + 1);
+      diamond(ctx, cx, cy, TILE_P, TILE_P, HILL_FEATURES.has(plot.feature) ? ['#4f8f5c', '#447f50'] : ['#8b8069', '#74694f'], plot.plot + 1);
       if (plot.feature === 'shop') drawShop(ctx, cx, cy);
       if (plot.feature === 'well') drawWell(ctx, cx, cy);
+      if (plot.feature === 'board') drawBoard(ctx, cx, cy);
+      if (plot.feature === 'hill' && col === 5 && row === 10) drawHill(ctx, layout);
       // The stage's last tile in paint order, like the crypts.
-      if (plot.feature === 'stage' && col === 8 && row === 4) {
+      if (plot.feature === 'stage' && col === 8 && row === 5) {
         const [sx, sy] = tileCenter(layout, BAND_CENTER[0], BAND_CENTER[1]);
         drawStage(ctx, sx, sy);
       }
@@ -694,6 +773,13 @@ export function createScene(canvas) {
   let flies = [];
   let floaters = [];
   let visitors = [];
+  let ghost = null;
+  let currentPlots = [];
+
+  function heightAt(col, row) {
+    const plot = currentPlots[Math.round(row) * layout.cols + Math.round(col)];
+    return HILL_FEATURES.has(plot?.feature) ? HILL_HEIGHT : 0;
+  }
 
   function drawOverlay(time) {
     const ctx = canvas.getContext('2d');
@@ -726,8 +812,15 @@ export function createScene(canvas) {
       ctx.restore();
     });
     for (const visitor of [...visitors].sort((a, b) => a.c + a.r - b.c - b.r)) {
-      const [x, y] = tileCenter(layout, visitor.c, visitor.r);
-      drawChubrik(ctx, Math.round(x), Math.round(y), time, visitor);
+      const [x, ground] = tileCenter(layout, visitor.c, visitor.r);
+      const y = ground - heightAt(visitor.c, visitor.r);
+      if (visitor.digger) drawDigger(ctx, Math.round(x), Math.round(y), time, visitor);
+      else drawChubrik(ctx, Math.round(x), Math.round(y), time, visitor);
+      if (visitor.nick) drawNick(ctx, Math.round(x), Math.round(y) - (visitor.digger ? 21 : visitor.me ? 20 : 14), visitor.nick, visitor.me);
+    }
+    if (ghost) {
+      const [x, y] = tileCenter(layout, ghost.c, ghost.r);
+      drawHuntedGhost(ctx, x, y, time);
     }
     for (let band = 0; band < 3; band++) {
       const y = layout.oy + (layout.cols + layout.rows) * STEP_Y * (0.25 + band * 0.27);
@@ -771,6 +864,7 @@ export function createScene(canvas) {
           phase: r() * 6.28,
         }));
       }
+      currentPlots = state.plots;
       glows = drawWorld(world.getContext('2d'), layout, state, adLabel);
       floaters = state.plots
         .filter((plot) => plot.grave && plot.grave.stage < 3)
@@ -789,6 +883,9 @@ export function createScene(canvas) {
     setVisitors(list) {
       visitors = list;
       if (reduced && layout) drawOverlay(0);
+    },
+    setGhost(next) {
+      ghost = next;
     },
     // Where a map position sits on the canvas, as a share of its size: the camera follows the walker with it.
     shareOf(col, row) {
