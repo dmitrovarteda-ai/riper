@@ -328,8 +328,9 @@ export function createApp(core, { adminToken = '', stripe = null, boostyUrls = n
           return;
         }
         if (path === '/api/admin/spotlight') {
-          const plot = body.plot === null ? null : Number(body.plot);
-          if (plot !== null && !core.state().plots[plot]?.grave) throw new UserError('not_found', 404);
+          // A grave number, 'band' for the skeletons on the whole screen, or null for taking turns.
+          const plot = body.plot === null || body.plot === 'band' ? body.plot : Number(body.plot);
+          if (typeof plot === 'number' && !core.state().plots[plot]?.grave) throw new UserError('not_found', 404);
           spotlight = plot;
           send(res, 200, { spotlight });
           return;

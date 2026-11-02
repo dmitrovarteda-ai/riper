@@ -109,6 +109,25 @@ function createSection() {
   return section;
 }
 
+function streamSection(spotlight) {
+  const section = document.createElement('section');
+  const title = document.createElement('h2');
+  title.textContent = 'Эфир';
+  const note = Object.assign(document.createElement('p'), {
+    className: 'small',
+    textContent: spotlight === 'band'
+      ? 'Сейчас в эфире группа на весь экран.'
+      : spotlight === null
+        ? 'Могилы сменяются сами. Закрепить одну можно кнопкой в списке могил ниже.'
+        : `Сейчас в эфире закреплено место №${spotlight + 1}.`,
+  });
+  const row = Object.assign(document.createElement('div'), { className: 'row' });
+  row.append(button(spotlight === 'band' ? 'Убрать группу' : 'Показать группу на весь экран', () => api('/api/admin/spotlight', { plot: spotlight === 'band' ? null : 'band' })));
+  if (spotlight !== null) row.append(button('Вернуть автосмену могил', () => api('/api/admin/spotlight', { plot: null })));
+  section.append(title, note, row);
+  return section;
+}
+
 function graveSection(graves, spotlight) {
   return table('Все могилы и склепы', ['Место', 'Имя', 'Надпись', 'Состояние', ''], graves.map((grave) => {
     const name = input('Имя', grave.name, 24);
@@ -165,6 +184,7 @@ async function load() {
   $('error').textContent = '';
   $('queue').replaceChildren(
     giftNotice(),
+    streamSection(spotlight),
     backupSection(),
     cryptSection(queue.crypts),
     createSection(),

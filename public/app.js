@@ -97,7 +97,7 @@ function startMusicOnce(event) {
 window.addEventListener('pointerdown', startMusicOnce);
 window.addEventListener('keydown', startMusicOnce);
 
-const bandDialog = createBandDialog({ el, music, renderMusicButton: toggleMusic });
+const bandDialog = createBandDialog({ music, renderMusicButton: toggleMusic });
 
 function staticText() {
   document.documentElement.lang = getLang();

@@ -2,6 +2,7 @@ import { createScene, createCloseup } from './render.js';
 import { t } from './i18n.js';
 import { createCrowd } from './walk.js';
 import { createMusic } from './music.js';
+import { createBandShow } from './band.js';
 
 const FOCUS_MS = 20_000;
 const LIVE_MS = 3000;
@@ -69,12 +70,21 @@ if (config.liveEvents) {
 }
 
 const crowd = createCrowd();
+const bandShow = createBandShow($('band-canvas'), $('band-bubbles'), 'ru');
 async function readLive() {
   const live = await (await fetch('/api/live')).json();
   crowd.update(live.visitors);
   if (live.spotlight !== spotlight) {
+    const wasBand = spotlight === 'band';
     spotlight = live.spotlight;
-    if (spotlight === null) {
+    if (wasBand) {
+      bandShow.stop();
+      $('band-screen').hidden = true;
+    }
+    if (spotlight === 'band') {
+      $('band-screen').hidden = false;
+      bandShow.start();
+    } else if (spotlight === null) {
       nextFocus();
     } else {
       focusPlot = spotlight;
