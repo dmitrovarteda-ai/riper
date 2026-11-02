@@ -13,6 +13,7 @@ const MAX_WEBHOOK_BODY = 256 * 1024;
 const MAX_BACKUP_BODY = 2 * 1024 * 1024;
 const VISITOR_TTL_MS = 12_000;
 const MAX_VISITORS = 200;
+const STREAM_ONLINE_MS = 10_000;
 const ROUTES = { '/': 'index.html', '/stream': 'stream.html', '/admin': 'admin.html', '/terms': 'terms.html', '/privacy': 'privacy.html' };
 const SECURITY_HEADERS = {
   'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; frame-ancestors 'self'; base-uri 'none'; form-action 'self'",
@@ -91,13 +92,16 @@ export function createApp(core, { adminToken = '', stripe = null, boostyUrls = n
   // Kept in memory only: a random id per open tab and a spot on the map, nothing about the person.
   const visitors = new Map();
   let spotlight = null;
+  let streamSeen = 0;
+  // Changes with every restart, so an open stream page knows to load the new version.
+  const build = String(now());
 
   function liveJson(ownId = null) {
     const at = now();
     for (const [id, visitor] of visitors) if (at - visitor.seen > VISITOR_TTL_MS) visitors.delete(id);
     const list = [];
     for (const [id, visitor] of visitors) if (id !== ownId) list.push({ id, c: visitor.c, r: visitor.r });
-    return { visitors: list, spotlight };
+    return { visitors: list, spotlight, build, streamOnline: at - streamSeen < STREAM_ONLINE_MS };
   }
   let cachedState = null;
   let cachedAt = 0;
@@ -197,6 +201,7 @@ export function createApp(core, { adminToken = '', stripe = null, boostyUrls = n
       return;
     }
     if (method === 'GET' && path === '/api/live') {
+      if (new URL(req.url, 'http://local').searchParams.has('stream')) streamSeen = now();
       send(res, 200, liveJson());
       return;
     }

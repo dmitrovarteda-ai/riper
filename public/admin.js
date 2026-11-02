@@ -109,10 +109,16 @@ function createSection() {
   return section;
 }
 
-function streamSection(spotlight) {
+function streamSection(spotlight, streamOnline) {
   const section = document.createElement('section');
   const title = document.createElement('h2');
   title.textContent = 'Эфир';
+  const link = Object.assign(document.createElement('p'), {
+    className: streamOnline ? 'small' : 'error',
+    textContent: streamOnline
+      ? 'Страница эфира на связи.'
+      : 'Страница эфира не на связи: кнопки не подействуют. Обновите источник «Браузер» в OBS (Свойства → Обновить кэш текущей страницы).',
+  });
   const note = Object.assign(document.createElement('p'), {
     className: 'small',
     textContent: spotlight === 'band'
@@ -124,7 +130,7 @@ function streamSection(spotlight) {
   const row = Object.assign(document.createElement('div'), { className: 'row' });
   row.append(button(spotlight === 'band' ? 'Убрать группу' : 'Показать группу на весь экран', () => api('/api/admin/spotlight', { plot: spotlight === 'band' ? null : 'band' })));
   if (spotlight !== null) row.append(button('Вернуть автосмену могил', () => api('/api/admin/spotlight', { plot: null })));
-  section.append(title, note, row);
+  section.append(title, link, note, row);
   return section;
 }
 
@@ -179,12 +185,12 @@ function table(title, headers, rows) {
 
 async function load() {
   const queue = await api('/api/admin/queue');
-  const { spotlight } = await api('/api/live');
+  const { spotlight, streamOnline } = await api('/api/live');
   $('auth').hidden = true;
   $('error').textContent = '';
   $('queue').replaceChildren(
     giftNotice(),
-    streamSection(spotlight),
+    streamSection(spotlight, streamOnline),
     backupSection(),
     cryptSection(queue.crypts),
     createSection(),

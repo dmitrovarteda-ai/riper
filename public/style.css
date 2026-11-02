@@ -183,14 +183,22 @@ button.link { background: none; color: var(--muted); padding: 0; font-weight: 40
 .admin td button { margin: 2px; padding: 6px 8px; font-size: 13px; }
 
 body.stream { width: 1920px; height: 1080px; overflow: hidden; position: relative; }
-.stream-map { position: absolute; left: 40px; top: 40px; width: 1400px; }
+.stream-map { position: absolute; left: 66px; top: 2px; width: 1788px; }
 .stream-map canvas { width: 100%; }
-.stream-side { position: absolute; left: 1480px; top: 40px; width: 400px; bottom: 40px; display: flex; flex-direction: column; gap: 24px; }
-.stream-focus { background: var(--card); border: 2px solid var(--line); padding: 16px; text-align: center; }
-.stream-focus canvas { width: 368px; image-rendering: auto; }
-.stream-name { font: 700 40px/1.2 ui-monospace, Consolas, monospace; color: var(--accent); margin-top: 12px; overflow-wrap: anywhere; }
-.stream-stage { font-size: 24px; color: var(--muted); }
-.stream-events { list-style: none; margin: 0; padding: 0; font-size: 24px; overflow: hidden; flex: 1; }
-.stream-events li { padding: 6px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
-.stream-cta { position: absolute; left: 40px; right: 480px; bottom: 24px; font: 700 40px/1.2 ui-monospace, Consolas, monospace; color: var(--accent); }
-.stream-cta small { display: block; font-size: 28px; color: var(--muted); font-weight: 400; }
+.stream-side { position: absolute; right: 16px; top: 16px; width: 300px; bottom: 16px; display: flex; flex-direction: column; justify-content: space-between; gap: 24px; pointer-events: none; }
+.stream-focus { background: rgba(32, 35, 42, .92); border: 2px solid var(--line); border-radius: 8px; padding: 12px; text-align: center; }
+.stream-focus canvas { width: 272px; image-rendering: pixelated; }
+.stream-name { font: 700 28px/1.2 ui-monospace, Consolas, monospace; color: var(--accent); margin-top: 8px; overflow-wrap: anywhere; }
+.stream-stage { font-size: 20px; color: var(--muted); }
+.stream-events { list-style: none; margin: 0; padding: 8px 12px; font-size: 20px; overflow: hidden; background: rgba(32, 35, 42, .85); border-radius: 8px; }
+.stream-events:empty { display: none; }
+.stream-events li { padding: 4px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.stream-events li:last-child { border-bottom: 0; }
+.stream-cta { position: absolute; left: 24px; bottom: 16px; width: 760px; font: 700 30px/1.2 ui-monospace, Consolas, monospace; color: var(--accent); text-shadow: 0 2px 6px #000; }
+.stream-cta small { display: block; font-size: 22px; color: var(--muted); font-weight: 400; }
+/* A grave picked in /admin takes the whole screen, like the band. */
+.spotlit .stream-focus { position: fixed; inset: 0; z-index: 5; display: grid; grid-template-columns: 1120px 1fr; grid-template-rows: auto auto auto; align-content: center; column-gap: 48px; padding: 40px; border: 0; border-radius: 0; background: #0b0d1a; text-align: left; }
+.spotlit .stream-focus canvas { grid-row: 1 / span 3; width: 1120px; }
+.spotlit .stream-name { align-self: end; margin: 0 0 16px; font-size: 76px; }
+.spotlit #focus-epitaph { font-size: 50px; font-style: italic; color: #f4e6c2; line-height: 1.25; margin-bottom: 24px; }
+.spotlit #focus-stage { font-size: 32px; }

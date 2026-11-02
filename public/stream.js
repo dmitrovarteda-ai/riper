@@ -71,9 +71,14 @@ if (config.liveEvents) {
 
 const crowd = createCrowd();
 const bandShow = createBandShow($('band-canvas'), $('band-bubbles'), 'ru');
+let build = null;
 async function readLive() {
-  const live = await (await fetch('/api/live')).json();
+  const live = await (await fetch('/api/live?stream=1')).json();
+  // OBS keeps a page open for hours: after a new version goes live, it must pick it up by itself.
+  if (build !== null && live.build !== build) location.reload();
+  build = live.build;
   crowd.update(live.visitors);
+  document.body.classList.toggle('spotlit', typeof live.spotlight === 'number');
   if (live.spotlight !== spotlight) {
     const wasBand = spotlight === 'band';
     spotlight = live.spotlight;
