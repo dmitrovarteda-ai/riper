@@ -451,6 +451,109 @@ function drawAdZone(ctx, cx, cy, label) {
   ctx.restore();
 }
 
+// The band's place on the map, in tile coordinates, and each player's spot on the stage.
+const BAND_CENTER = [7, 3.5];
+const BAND_SPOTS = [[-0.75, 0.75, 'guitar'], [-0.6, 0.15, 'drums'], [0.1, 0.1, 'singer'], [0.25, -0.5, 'bass'], [0.75, -0.75, 'organ']];
+const STAGE_HEIGHT = 6;
+
+function drawStage(ctx, cx, cy) {
+  box(ctx, cx, cy, 25, 16, STAGE_HEIGHT, 0, ['#6b4a2c', '#4d3420', '#3b2718']);
+  for (let i = -20; i <= 20; i += 8) box(ctx, cx + i * 2, cy + i, 0.5, 15, 0, STAGE_HEIGHT, ['#5a3e25', '#5a3e25', '#5a3e25']);
+}
+
+function drawShop(ctx, cx, cy) {
+  box(ctx, cx, cy, 6, 6, 13, 0, ['#7a5636', '#5d3f27', '#49301d']);
+  box(ctx, cx, cy, 8, 8, 2, 13, ['#c43d5a', '#962c44', '#752234']);
+  box(ctx, cx, cy, 1, 1, 8, 15, ['#f6d271', '#c0943a', '#8c6a26']);
+  rect(ctx, cx - 5, cy - 19, 10, 2, '#f6d271');
+  rect(ctx, cx + 12, cy - 5, 2, 9, '#c3c6d4');
+  rect(ctx, cx + 10, cy - 3, 6, 2, '#c3c6d4');
+}
+
+function drawWell(ctx, cx, cy) {
+  box(ctx, cx, cy, 5, 5, 6, 0, ['#4fb6d9', '#7c7e8e', '#5f6172']);
+  rect(ctx, cx - 11, cy - 20, 1, 15, '#4a3a30');
+  rect(ctx, cx + 10, cy - 20, 1, 15, '#4a3a30');
+  box(ctx, cx, cy, 6, 6, 2, 20, ['#7a5636', '#5d3f27', '#49301d']);
+}
+
+const BONE = '#e9e6d8';
+const BONE_DARK = '#1c1a26';
+
+function drawInstrument(ctx, x, y, role, swing, lift) {
+  if (role === 'guitar') {
+    rect(ctx, x - 3, y - 9, 5, 3, '#c0502f');
+    rect(ctx, x + 2, y - 11, 6, 1, '#8a6728');
+    rect(ctx, x + 1, y - 9 + swing, 3, 1, BONE);
+  } else if (role === 'bass') {
+    rect(ctx, x + 4, y - 7, 5, 6, '#7a4a26');
+    rect(ctx, x + 6, y - 17, 1, 11, '#3a2a1f');
+    rect(ctx, x + 1, y - 7 + swing, 3, 1, BONE);
+  } else if (role === 'drums') {
+    rect(ctx, x - 7, y - 6, 14, 6, '#c43d5a');
+    rect(ctx, x - 3, y - 5, 6, 4, BONE);
+    rect(ctx, x - 10, y - 10, 5, 1, '#f0c566');
+    rect(ctx, x + 6, y - 10, 5, 1, '#f0c566');
+    rect(ctx, x - 5, y - 11 - swing, 1, 3, '#caa56a');
+    rect(ctx, x + 5, y - 10 - (1 - swing), 1, 3, '#caa56a');
+  } else if (role === 'organ') {
+    rect(ctx, x - 7, y - 8, 14, 4, '#3a2a1f');
+    rect(ctx, x - 6, y - 8, 12, 1, BONE);
+    rect(ctx, x - 6, y - 4, 2, 4, '#3a2a1f');
+    rect(ctx, x + 4, y - 4, 2, 4, '#3a2a1f');
+    rect(ctx, x - 3 + swing * 4, y - 9, 2, 1, BONE);
+  } else {
+    rect(ctx, x + 4, y - 12, 1, 12, '#6d7084');
+    rect(ctx, x + 3, y - 14, 3, 2, '#3a3d4c');
+    rect(ctx, x - 5, y - 13 - lift, 3, 1, BONE);
+    rect(ctx, x + 2, y - 11, 2, 1, BONE);
+  }
+}
+
+// One band member, feet at (x, y). Everything keeps to a whole-pixel grid and moves on the beat.
+function drawSkeleton(ctx, x, y, time, role, phase) {
+  const beat = Math.floor(time / 280 + phase);
+  const bob = beat % 2;
+  const swing = Math.floor(time / 160 + phase) % 2;
+  rect(ctx, x - 2, y - 6, 1, 6, BONE);
+  rect(ctx, x + 1, y - 6, 1, 6, BONE);
+  rect(ctx, x - 3, y - 1, 2, 1, BONE);
+  rect(ctx, x + 1, y - 1, 2, 1, BONE);
+  rect(ctx, x - 2, y - 7, 4, 1, BONE);
+  rect(ctx, x, y - 12 - bob, 1, 5 + bob, BONE);
+  rect(ctx, x - 2, y - 11 - bob, 5, 1, BONE);
+  rect(ctx, x - 2, y - 9 - bob, 5, 1, BONE);
+  rect(ctx, x - 2, y - 17 - bob, 5, 4, BONE);
+  rect(ctx, x - 1, y - 13 - bob, 3, 1, BONE);
+  rect(ctx, x - 1, y - 16 - bob, 1, 1, BONE_DARK);
+  rect(ctx, x + 1, y - 16 - bob, 1, 1, BONE_DARK);
+  drawInstrument(ctx, x, y, role, swing, bob);
+}
+
+const CHUBRIK_COLORS = ['#e86a6a', '#6ac1e8', '#8fdc6a', '#c98ae8', '#e8b86a', '#6ae8c4', '#e88ac1', '#9aa3e8'];
+
+// A tiny visitor with a round head, a little hoodie and legs that move only while walking.
+function drawChubrik(ctx, x, y, time, { color, moving, me, phase = 0 }) {
+  const step = moving ? Math.floor(time / 130 + phase) % 2 : 0;
+  const bob = moving ? step : 0;
+  rect(ctx, x - 3, y, 7, 1, 'rgba(0, 0, 0, 0.35)');
+  rect(ctx, x - 2, y - 2 + step, 2, 2 - step, '#262833');
+  rect(ctx, x + 1, y - 2 + (1 - step) * (moving ? 1 : 0), 2, moving ? 1 + step : 2, '#262833');
+  rect(ctx, x - 3, y - 7 - bob, 7, 5, color);
+  rect(ctx, x - 4, y - 6 - bob, 1, 3, color);
+  rect(ctx, x + 4, y - 6 - bob, 1, 3, color);
+  rect(ctx, x - 2, y - 11 - bob, 5, 4, '#f3d9b8');
+  rect(ctx, x - 3, y - 12 - bob, 7, 2, color);
+  rect(ctx, x - 1, y - 9 - bob, 1, 1, BONE_DARK);
+  rect(ctx, x + 1, y - 9 - bob, 1, 1, BONE_DARK);
+  if (me) {
+    const lift = Math.floor(time / 300) % 2;
+    rect(ctx, x - 2, y - 18 - lift, 5, 1, '#ffe27a');
+    rect(ctx, x - 1, y - 17 - lift, 3, 1, '#ffe27a');
+    rect(ctx, x, y - 16 - lift, 1, 1, '#ffe27a');
+  }
+}
+
 function drawTree(ctx, x, y, seed) {
   const r = rng(seed);
   box(ctx, x, y, 0.75, 0.75, 20, 0, ['#4a3a30', '#3a2c25', '#2a201b']);
@@ -554,6 +657,15 @@ function drawWorld(ctx, layout, state, adLabel) {
         const [zx, zy] = tileCenter(layout, zone.col + 0.5, zone.row + 0.5);
         drawAdZone(ctx, zx, zy, state.plots[zone.row * cols + zone.col].grave?.name || adLabel);
       }
+    } else if (plot.feature) {
+      diamond(ctx, cx, cy, TILE_P, TILE_P, ['#8b8069', '#74694f'], plot.plot + 1);
+      if (plot.feature === 'shop') drawShop(ctx, cx, cy);
+      if (plot.feature === 'well') drawWell(ctx, cx, cy);
+      // The stage's last tile in paint order, like the crypts.
+      if (plot.feature === 'stage' && col === 8 && row === 4) {
+        const [sx, sy] = tileCenter(layout, BAND_CENTER[0], BAND_CENTER[1]);
+        drawStage(ctx, sx, sy);
+      }
     } else {
       drawPlot(ctx, cx, cy, plot);
     }
@@ -581,6 +693,7 @@ export function createScene(canvas) {
   let last = 0;
   let flies = [];
   let floaters = [];
+  let visitors = [];
 
   function drawOverlay(time) {
     const ctx = canvas.getContext('2d');
@@ -604,6 +717,17 @@ export function createScene(canvas) {
     for (const { plot, item } of floaters) {
       const [cx, cy] = tileCenter(layout, plot % layout.cols, Math.floor(plot / layout.cols));
       drawFloating(ctx, cx + item.x, cy + item.y, item.type, time, plot + item.x);
+    }
+    BAND_SPOTS.forEach(([dc, dr, role], index) => {
+      const [x, y] = tileCenter(layout, BAND_CENTER[0] + dc, BAND_CENTER[1] + dr);
+      ctx.save();
+      ctx.scale(2, 2);
+      drawSkeleton(ctx, Math.round(x / 2), Math.round((y - STAGE_HEIGHT) / 2), time, role, index * 0.7);
+      ctx.restore();
+    });
+    for (const visitor of [...visitors].sort((a, b) => a.c + a.r - b.c - b.r)) {
+      const [x, y] = tileCenter(layout, visitor.c, visitor.r);
+      drawChubrik(ctx, Math.round(x), Math.round(y), time, visitor);
     }
     for (let band = 0; band < 3; band++) {
       const y = layout.oy + (layout.cols + layout.rows) * STEP_Y * (0.25 + band * 0.27);
@@ -662,6 +786,15 @@ export function createScene(canvas) {
       selected = plot;
       if (layout) drawOverlay(performance.now());
     },
+    setVisitors(list) {
+      visitors = list;
+      if (reduced && layout) drawOverlay(0);
+    },
+    // Where a map position sits on the canvas, as a share of its size: the camera follows the walker with it.
+    shareOf(col, row) {
+      const [x, y] = tileCenter(layout, col, row);
+      return [x / layout.width, y / layout.height];
+    },
     plotAt(clientX, clientY) {
       if (!layout) return null;
       const bounds = canvas.getBoundingClientRect();
@@ -672,6 +805,61 @@ export function createScene(canvas) {
       );
     },
   };
+}
+
+export const CHUBRIK_COUNT = CHUBRIK_COLORS.length;
+export const chubrikColor = (index) => CHUBRIK_COLORS[index % CHUBRIK_COLORS.length];
+
+// The band on a big stage. It reports where each player stands, so speech bubbles can sit above them.
+export const BAND_PLAYERS = [
+  { role: 'guitar', x: 11, y: 54 },
+  { role: 'drums', x: 31, y: 46 },
+  { role: 'singer', x: 50, y: 58 },
+  { role: 'bass', x: 68, y: 48 },
+  { role: 'organ', x: 88, y: 55 },
+];
+
+export function createBandView(canvas) {
+  const WIDTH = 120;
+  const HEIGHT = 68;
+  const SCALE = 8;
+  const SPRITE = 2;
+  canvas.width = WIDTH * SCALE;
+  canvas.height = HEIGHT * SCALE;
+  const ctx = canvas.getContext('2d');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let running = true;
+  let last = 0;
+
+  function paint(time) {
+    ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    rect(ctx, 0, 0, WIDTH, HEIGHT, '#141a33');
+    for (let i = 0; i < 12; i++) rect(ctx, i * 10, 0, 5, 38, i % 2 ? '#5c1f33' : '#6f2740');
+    rect(ctx, 0, 38, WIDTH, 30, '#6b4a2c');
+    for (let i = 0; i < 6; i++) rect(ctx, 0, 42 + i * 5, WIDTH, 1, '#4d3420');
+    rect(ctx, 0, 0, WIDTH, 3, '#f0c566');
+    for (let i = 0; i < 6; i++) {
+      const on = Math.floor(time / 400 + i) % 2;
+      rect(ctx, 8 + i * 21, 3, 2, 2, on ? '#ffe27a' : '#8a6728');
+    }
+    ctx.setTransform(SCALE * SPRITE, 0, 0, SCALE * SPRITE, 0, 0);
+    BAND_PLAYERS.forEach(({ role, x, y }, index) => {
+      drawSkeleton(ctx, Math.round((x / 100) * WIDTH / SPRITE), Math.round((y / 100) * HEIGHT / SPRITE) + 8, time, role, index * 0.7);
+    });
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
+  function loop(time) {
+    if (!running) return;
+    requestAnimationFrame(loop);
+    if (time - last < FRAME_MS) return;
+    last = time;
+    paint(time);
+  }
+  paint(0);
+  if (!reduced) requestAnimationFrame(loop);
+  return { stop() { running = false; } };
 }
 
 function wrapLines(ctx, text, width) {
@@ -713,11 +901,11 @@ function carveText(ctx, [ox, oy], slope, width, height, title, body, color) {
 
 // A large animated view of one grave: it turns and zooms, and its inscription stays readable.
 export function createCloseup(canvas) {
-  const WIDTH = 96;
-  const HEIGHT = 90;
-  const CENTER_X = 48;
-  const CENTER_Y = 60;
-  const SCALE = 8;
+  const WIDTH = 84;
+  const HEIGHT = 76;
+  const CENTER_X = 42;
+  const CENTER_Y = 46;
+  const SCALE = 10;
 
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   canvas.width = WIDTH * SCALE;
@@ -780,7 +968,7 @@ export function createCloseup(canvas) {
       lowCtx.fillRect(WIDTH - 14 - half, 12 + y, half * 2, 1);
     }
     lowCtx.fillStyle = '#1b1e38';
-    for (let x = 0; x < WIDTH; x++) lowCtx.fillRect(x, Math.round(44 + Math.sin(x * 0.09) * 4), 1, HEIGHT);
+    for (let x = 0; x < WIDTH; x++) lowCtx.fillRect(x, Math.round(30 + Math.sin(x * 0.09) * 4), 1, HEIGHT);
     box(lowCtx, CENTER_X, CENTER_Y + 10, TILE_P + 0.5, TILE_P + 0.5, 10, 0, ['#2f4a3a', '#4a3527', '#35261c']);
     drawPlot(lowCtx, CENTER_X, CENTER_Y, current, rot, true);
     if (current.grave && current.grave.stage < 3) {

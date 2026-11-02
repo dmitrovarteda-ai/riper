@@ -1,14 +1,17 @@
 import { createScene, createCloseup } from './render.js';
 import { t } from './i18n.js';
+import { createCrowd } from './walk.js';
+import { createMusic } from './music.js';
 
 const FOCUS_MS = 20_000;
+const LIVE_MS = 3000;
 const $ = (id) => document.getElementById(id);
 const scene = createScene($('map'));
 const focusView = createCloseup($('focus'));
 
 let state = null;
 let cursor = 0;
-let holdUntil = 0;
+let spotlight = null;
 let focusPlot = null;
 
 const both = (key, vars) => `${t(key, vars, 'ru')} / ${t(key, vars, 'en')}`;
@@ -45,8 +48,9 @@ async function refresh() {
   renderFocus();
 }
 
+// The owner picks a grave in /admin and it stays on air; otherwise the graves take turns.
 function nextFocus() {
-  if (Date.now() < holdUntil || !state) return;
+  if (spotlight !== null || !state) return;
   const graves = state.plots.filter((plot) => plot.grave && !plot.ad);
   if (!graves.length) {
     focusPlot = null;
@@ -61,15 +65,34 @@ function nextFocus() {
 const config = await (await fetch('/api/config')).json();
 if (config.liveEvents) {
   const events = new EventSource('/api/events');
-  events.onmessage = async (message) => {
-    const data = JSON.parse(message.data);
-    if (data.plot !== undefined && !state?.plots[data.plot]?.ad) {
-      focusPlot = data.plot;
-      holdUntil = Date.now() + FOCUS_MS;
-    }
-    await refresh().catch(() => {});
-  };
+  events.onmessage = () => refresh().catch(() => {});
 }
+
+const crowd = createCrowd();
+async function readLive() {
+  const live = await (await fetch('/api/live')).json();
+  crowd.update(live.visitors);
+  if (live.spotlight !== spotlight) {
+    spotlight = live.spotlight;
+    if (spotlight === null) {
+      nextFocus();
+    } else {
+      focusPlot = spotlight;
+      scene.setSelected(focusPlot);
+      renderFocus();
+    }
+  }
+}
+setInterval(() => readLive().catch(() => {}), LIVE_MS);
+let lastFrame = performance.now();
+(function glide(time) {
+  requestAnimationFrame(glide);
+  scene.setVisitors(crowd.tick(Math.min(0.1, (time - lastFrame) / 1000)));
+  lastFrame = time;
+}(lastFrame));
+
+// OBS has no one to click the page, so the sound is asked for in the address: /stream?music=1
+if (new URLSearchParams(location.search).get('music') === '1') createMusic().start();
 
 const ctaKey = config.ordersOpen ? 'streamCta' : 'streamBetaCta';
 $('cta-ru').textContent = t(ctaKey, {}, 'ru');

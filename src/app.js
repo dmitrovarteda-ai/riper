@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import { timingSafeEqual, createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { UserError, PRODUCTS, CURRENCY, CHECKOUT_MS, COLORS, STYLES, ITEMS, ITEM_LIMITS, FENCE_MIN_TIER, EPITAPH_MIN_TIER } from './core.js';
+import { UserError, GRID, PRODUCTS, CURRENCY, CHECKOUT_MS, COLORS, STYLES, ITEMS, ITEM_LIMITS, FENCE_MIN_TIER, EPITAPH_MIN_TIER } from './core.js';
 import { verifyWebhook } from './stripe.js';
 
 const PUBLIC_DIR = fileURLToPath(new URL('../public/', import.meta.url));
@@ -11,6 +11,8 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; cha
 const MAX_BODY = 16 * 1024;
 const MAX_WEBHOOK_BODY = 256 * 1024;
 const MAX_BACKUP_BODY = 2 * 1024 * 1024;
+const VISITOR_TTL_MS = 12_000;
+const MAX_VISITORS = 200;
 const ROUTES = { '/': 'index.html', '/stream': 'stream.html', '/admin': 'admin.html', '/terms': 'terms.html', '/privacy': 'privacy.html' };
 const SECURITY_HEADERS = {
   'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; frame-ancestors 'self'; base-uri 'none'; form-action 'self'",
@@ -84,7 +86,19 @@ export function createApp(core, { adminToken = '', stripe = null, boostyUrls = n
     code: rateLimiter(20, 60_000, now),
     order: rateLimiter(10, 60_000, now),
     report: rateLimiter(5, 60_000, now),
+    live: rateLimiter(120, 60_000, now),
   };
+  // Kept in memory only: a random id per open tab and a spot on the map, nothing about the person.
+  const visitors = new Map();
+  let spotlight = null;
+
+  function liveJson(ownId = null) {
+    const at = now();
+    for (const [id, visitor] of visitors) if (at - visitor.seen > VISITOR_TTL_MS) visitors.delete(id);
+    const list = [];
+    for (const [id, visitor] of visitors) if (id !== ownId) list.push({ id, c: visitor.c, r: visitor.r });
+    return { visitors: list, spotlight };
+  }
   let cachedState = null;
   let cachedAt = 0;
 
@@ -180,6 +194,19 @@ export function createApp(core, { adminToken = '', stripe = null, boostyUrls = n
     }
     if (method === 'GET' && path === '/api/config') {
       send(res, 200, { products: core.products(), devPayments, manualPayments: !!boostyUrls, donateUrl, cryptsOpen, ordersOpen, liveEvents, colors: COLORS, styles: STYLES, items: ITEMS, itemLimits: ITEM_LIMITS, fenceTier: FENCE_MIN_TIER, epitaphTier: EPITAPH_MIN_TIER });
+      return;
+    }
+    if (method === 'GET' && path === '/api/live') {
+      send(res, 200, liveJson());
+      return;
+    }
+    if (method === 'POST' && path === '/api/live') {
+      limits.live.check(ip);
+      const { id, c, r } = await readJson(req);
+      const valid = /^[a-z0-9]{8,16}$/.test(String(id)) && Number.isFinite(c) && Number.isFinite(r) && c >= -1 && r >= -1 && c <= GRID.cols && r <= GRID.rows;
+      if (!valid) throw new UserError('bad_option');
+      if (visitors.has(id) || visitors.size < MAX_VISITORS) visitors.set(id, { c: Math.round(c * 100) / 100, r: Math.round(r * 100) / 100, seen: now() });
+      send(res, 200, liveJson(id));
       return;
     }
     if (method === 'GET' && path === '/api/events') {
@@ -298,6 +325,13 @@ export function createApp(core, { adminToken = '', stripe = null, boostyUrls = n
         const body = await readJson(req);
         if (path === '/api/admin/review') {
           send(res, 200, { ok: core.admin.review(body.plot, body.decision) });
+          return;
+        }
+        if (path === '/api/admin/spotlight') {
+          const plot = body.plot === null ? null : Number(body.plot);
+          if (plot !== null && !core.state().plots[plot]?.grave) throw new UserError('not_found', 404);
+          spotlight = plot;
+          send(res, 200, { spotlight });
           return;
         }
         if (path === '/api/admin/grave-create') {

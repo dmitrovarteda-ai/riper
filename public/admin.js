@@ -109,7 +109,7 @@ function createSection() {
   return section;
 }
 
-function graveSection(graves) {
+function graveSection(graves, spotlight) {
   return table('Все могилы и склепы', ['Место', 'Имя', 'Надпись', 'Состояние', ''], graves.map((grave) => {
     const name = input('Имя', grave.name, 24);
     const epitaph = input('Надпись', grave.epitaph ?? '', 40);
@@ -124,6 +124,7 @@ function graveSection(graves) {
       [epitaph],
       [stage],
       [
+        crypt ? '' : button(spotlight === grave.plot ? 'В эфире: убрать' : 'Показать в эфире', () => api('/api/admin/spotlight', { plot: spotlight === grave.plot ? null : grave.plot })),
         button('Сохранить', () => api('/api/admin/grave-update', { plot: grave.plot, name: name.value, epitaph: epitaph.value, ...(crypt ? {} : { stage: Number(stage.value) }) })),
         button('Редактор', async () => {
           const { code } = await api('/api/admin/editor-code', { plot: grave.plot });
@@ -159,6 +160,7 @@ function table(title, headers, rows) {
 
 async function load() {
   const queue = await api('/api/admin/queue');
+  const { spotlight } = await api('/api/live');
   $('auth').hidden = true;
   $('error').textContent = '';
   $('queue').replaceChildren(
@@ -166,7 +168,7 @@ async function load() {
     backupSection(),
     cryptSection(queue.crypts),
     createSection(),
-    graveSection(queue.allGraves),
+    graveSection(queue.allGraves, spotlight),
     table('Имена на проверке', ['Место', 'Имя', ''], queue.graves.map((grave) => [
       grave.plot + 1,
       grave.name,

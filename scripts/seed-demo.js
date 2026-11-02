@@ -6,7 +6,7 @@ const at = (col, row) => row * 15 + col;
 
 export const DEMO_GRAVES = [
   {
-    plot: at(7, 3), name: 'Мой дедлайн', epitaph: 'Был вчера', style: 'slab', color: 'obsidian', fence: true, stage: 0,
+    plot: at(5, 3), name: 'Мой дедлайн', epitaph: 'Был вчера', style: 'slab', color: 'obsidian', fence: true, stage: 0,
     items: [{ type: 'candle', x: -16, y: 8 }, { type: 'candle', x: 16, y: 8 }, { type: 'skull', x: 2, y: 12 }],
   },
   {
@@ -18,7 +18,7 @@ export const DEMO_GRAVES = [
     items: [{ type: 'crown', x: 12, y: 8 }, { type: 'rose', x: -14, y: 8 }, { type: 'tulip', x: -8, y: 11 }, { type: 'violet', x: 2, y: 13 }],
   },
   {
-    plot: at(3, 4), name: 'Мой спортзал', epitaph: 'Абонемент оплачен', style: 'slab', color: 'stone', fence: true, stage: 3,
+    plot: at(3, 3), name: 'Мой спортзал', epitaph: 'Абонемент оплачен', style: 'slab', color: 'stone', fence: true, stage: 3,
     items: [{ type: 'pebble', x: 15, y: 6 }],
   },
   {

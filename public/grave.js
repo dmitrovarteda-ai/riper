@@ -151,7 +151,7 @@ export function createGraveDialog({ api, el, clear, startPayment, getConfig, get
 
     const cryptsForRent = getConfig().cryptsOpen && getConfig().ordersOpen;
     const title = plot.grave?.name ?? (cryptsForRent ? t('cryptFreeTitle') : t('cryptBetaTitle'));
-    clear(body, el('h2', { textContent: t('cryptHeading') }), cryptStage(canvas, title, false), ...parts, error);
+    clear(body, el('h2', { textContent: `${t('cryptHeading')} · ${t('plotNumber', { n: anchor + 1 })}` }), cryptStage(canvas, title, false), ...parts, error);
     closeup = createCryptHall(canvas);
     closeup.set(hallContent(title, plot.grave ? plot.grave.epitaph ?? '' : cryptsForRent ? t('cryptFreeBody') : t('cryptBetaBody'), plot.grave?.color ?? 'marble', plot.grave?.items ?? []));
     open();
@@ -255,7 +255,7 @@ export function createGraveDialog({ api, el, clear, startPayment, getConfig, get
     const bannerInput = el('input', { maxLength: 40, value: grave.epitaphPending ?? grave.ownEpitaph ?? '', disabled: !canEdit });
     const linkInput = el('input', { type: 'url', maxLength: 200, placeholder: 'https://', value: grave.linkPending ?? grave.ownLink ?? '', disabled: !canEdit });
     clear(body,
-      el('h2', { textContent: `${t('cryptHeading')}: ${grave.ownName}` }),
+      el('h2', { textContent: `${t('cryptHeading')}: ${grave.ownName} · ${t('plotNumber', { n: grave.plot + 1 })}` }),
       el('div', { className: 'grave-layout' },
         el('div', {},
           cryptStage(canvas, grave.ownName, true),
@@ -323,11 +323,11 @@ export function createGraveDialog({ api, el, clear, startPayment, getConfig, get
     const codeInput = el('input', { autocomplete: 'off', spellcheck: false, placeholder: t('codePlaceholder') });
     const error = el('p', { className: 'error', role: 'alert' });
     clear(body,
-      el('h2', { textContent: plot.grave.name }),
+      el('h2', { textContent: `${plot.grave.name} · ${t('plotNumber', { n: index + 1 })}` }),
       canvas,
       viewControls(),
       plot.grave.epitaph ? el('p', { className: 'epitaph', textContent: `« ${plot.grave.epitaph} »` }) : null,
-      el('p', { className: 'small', textContent: `${t(`stage${plot.grave.stage}`)} · ${t('plotNumber', { n: index + 1 })}` }),
+      el('p', { className: 'small', textContent: t(`stage${plot.grave.stage}`) }),
       !getConfig().ordersOpen ? null : el('form', {
         className: 'owner-login',
         on: {
@@ -574,7 +574,7 @@ export function createGraveDialog({ api, el, clear, startPayment, getConfig, get
         })));
 
     clear(body,
-      el('h2', { textContent: `${t('yourGrave')}: ${grave.ownName}` }),
+      el('h2', { textContent: `${t('yourGrave')}: ${grave.ownName} · ${t('plotNumber', { n: grave.plot + 1 })}` }),
       el('div', { className: 'grave-layout' },
         el('div', {},
           canvas,

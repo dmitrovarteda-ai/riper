@@ -119,6 +119,17 @@ export function adZoneOf(plot) {
   return AD_ZONES.find((zone) => col >= zone.col && col <= zone.col + 1 && row >= zone.row && row <= zone.row + 1) ?? null;
 }
 
+// Tiles that belong to the cemetery itself: alleys, the band's stage and the special places.
+export const STAGE = { col: 6, row: 3, cols: 3, rows: 2 };
+export function featureOf(plot) {
+  const col = plot % GRID.cols;
+  const row = Math.floor(plot / GRID.cols);
+  if (col >= STAGE.col && col < STAGE.col + STAGE.cols && row >= STAGE.row && row < STAGE.row + STAGE.rows) return 'stage';
+  if (col === 8 && row === 6) return 'shop';
+  if (col === 6 && row === 6) return 'well';
+  return col === 7 || row === 4 ? 'path' : null;
+}
+
 export function isCenter(plot) {
   const col = plot % GRID.cols;
   const row = Math.floor(plot / GRID.cols);
@@ -271,6 +282,22 @@ export function createCore({ dbPath = ':memory:', now = Date.now, reserveMs = RE
     return !!get(`SELECT 1 AS x FROM orders WHERE plot = ? AND status = 'pending' AND name IS NOT NULL AND expires_at > ?`, plot, now());
   }
 
+  // A grave from before the alleys existed, or from an old copy, moves to the nearest regular plot.
+  function moveOffFeatures() {
+    const total = GRID.cols * GRID.rows;
+    for (const { plot } of all('SELECT plot FROM graves')) {
+      if (!featureOf(plot)) continue;
+      const free = Array.from({ length: total }, (_, index) => index)
+        .filter((index) => !featureOf(index) && !adZoneOf(index) && !plotTaken(index))
+        .sort((a, b) => Math.abs(a - plot) - Math.abs(b - plot))[0];
+      if (free === undefined) continue;
+      run('UPDATE graves SET plot = ? WHERE plot = ?', free, plot);
+      run('UPDATE events SET plot = ? WHERE plot = ?', free, plot);
+      run('UPDATE reports SET plot = ? WHERE plot = ?', free, plot);
+    }
+  }
+  moveOffFeatures();
+
   function fulfil(order) {
     const { tier } = PRODUCTS[order.product];
     const at = now();
@@ -316,7 +343,8 @@ export function createCore({ dbPath = ':memory:', now = Date.now, reserveMs = RE
       for (let plot = 0; plot < GRID.cols * GRID.rows; plot++) {
         const grave = byPlot.get(plot);
         const ad = adZoneOf(plot)?.id ?? null;
-        plots.push({ plot, center: isCenter(plot), ad, taken: !!ad || !!grave || plotTaken(plot), grave: grave?.visible ? grave : null, occupied: !!grave });
+        const feature = featureOf(plot);
+        plots.push({ plot, center: isCenter(plot), ad, feature, taken: !!ad || !!feature || !!grave || plotTaken(plot), grave: grave?.visible ? grave : null, occupied: !!grave });
       }
       const recent = all(
         `SELECT e.plot, e.type, e.created_at AS at, g.name FROM events e JOIN graves g ON g.plot = e.plot
@@ -333,6 +361,7 @@ export function createCore({ dbPath = ':memory:', now = Date.now, reserveMs = RE
       const index = Number(plot);
       if (!Number.isInteger(index) || index < 0 || index >= GRID.cols * GRID.rows) throw new UserError('bad_plot');
       if (adZoneOf(index)) throw new UserError('plot_reserved', 409);
+      if (featureOf(index)) throw new UserError('plot_feature', 409);
       if (consent !== true) throw new UserError('consent_required');
       const cleanName = validateName(name);
       const minTier = isCenter(index) ? CENTER_MIN_TIER : 1;
@@ -504,7 +533,7 @@ export function createCore({ dbPath = ':memory:', now = Date.now, reserveMs = RE
           'UPDATE graves SET color = ?, style = ?, fence = ?, items = ?, epitaph = ?, epitaph_pending = ?, link = ?, link_pending = ? WHERE plot = ?',
           nextColor, nextStyle, nextFence, nextItems, shown, pending, linkShown, linkPending, row.plot,
         );
-        if (color !== undefined || style !== undefined || fence !== undefined || items !== undefined) addEvent(row.plot, 'customized');
+        // A quiet change: the stream only shows a grave when the owner of the cemetery says so.
         emit({ type: 'changed' });
         return true;
       });
@@ -585,6 +614,7 @@ export function createCore({ dbPath = ':memory:', now = Date.now, reserveMs = RE
               throw new UserError('bad_backup');
             }
           }
+          moveOffFeatures();
           emit({ type: 'changed' });
           return copy.graves.length;
         });
@@ -594,6 +624,7 @@ export function createCore({ dbPath = ':memory:', now = Date.now, reserveMs = RE
         const index = Number(plot);
         if (!Number.isInteger(index) || index < 0 || index >= GRID.cols * GRID.rows) throw new UserError('bad_plot');
         if (adZoneOf(index)) throw new UserError('plot_reserved', 409);
+        if (featureOf(index)) throw new UserError('plot_feature', 409);
         const cleanName = validateName(name);
         const cleanEpitaph = validateEpitaph(epitaph) || null;
         return tx(() => {

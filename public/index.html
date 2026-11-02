@@ -15,6 +15,7 @@
     </div>
     <div class="top-actions">
       <a id="donate-top" class="button donate" target="_blank" rel="noopener" hidden></a>
+      <button id="music" type="button" class="ghost"></button>
       <button id="lang" type="button" class="ghost"></button>
     </div>
   </header>
@@ -33,6 +34,17 @@
           <button id="map-in" type="button" class="ghost" aria-label="Zoom in">+</button>
           <button id="map-out" type="button" class="ghost" aria-label="Zoom out">−</button>
         </div>
+        <div id="near" class="near" hidden></div>
+        <div id="walk-pad" class="walk-pad" hidden>
+          <button type="button" class="ghost" data-key="arrowup" aria-label="Up">▲</button>
+          <button type="button" class="ghost" data-key="arrowleft" aria-label="Left">◀</button>
+          <button type="button" class="ghost" data-key="arrowright" aria-label="Right">▶</button>
+          <button type="button" class="ghost" data-key="arrowdown" aria-label="Down">▼</button>
+        </div>
+      </div>
+      <div class="walk-row">
+        <button id="walk" type="button"></button>
+        <p id="walk-hint" class="small" hidden></p>
       </div>
       <form id="login" class="login">
         <label for="code" id="have-code"></label>
@@ -50,6 +62,25 @@
     <button id="grave-close" type="button" class="ghost grave-close" aria-label="Close">✕</button>
     <div id="grave-body"></div>
   </dialog>
+
+  <dialog id="band-dialog" class="band-dialog">
+    <div class="band-stage">
+      <canvas id="band-canvas"></canvas>
+      <div id="band-bubbles" class="band-bubbles"></div>
+      <div class="band-top">
+        <div>
+          <h2 id="band-title"></h2>
+          <p id="band-hint" class="small"></p>
+        </div>
+        <div class="top-actions">
+          <button id="band-music" type="button" class="ghost"></button>
+          <button id="band-close" type="button" class="ghost" aria-label="Close">✕</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <div id="map-tip" class="map-tip" hidden></div>
 
   <ul id="ticker" class="ticker" aria-label="Events"></ul>
 

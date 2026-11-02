@@ -1,6 +1,9 @@
 import { createScene } from './render.js';
 import { createGraveDialog } from './grave.js';
 import { t, errorText, getLang, setLang } from './i18n.js';
+import { createMusic } from './music.js';
+import { createBandDialog, randomJoke } from './band.js';
+import { createWalker } from './walk.js';
 
 const $ = (id) => document.getElementById(id);
 const panel = $('panel');
@@ -58,6 +61,44 @@ const graveDialog = createGraveDialog({
   },
 });
 
+const MUSIC_KEY = 'riperMusic';
+const music = createMusic();
+let musicWanted = true;
+try {
+  musicWanted = localStorage.getItem(MUSIC_KEY) !== 'off';
+} catch {}
+
+function renderMusicLabels() {
+  const label = music.playing ? t('musicOn') : t('musicOff');
+  $('music').textContent = label;
+  $('band-music').textContent = label;
+}
+
+function toggleMusic() {
+  if (music.playing) music.stop();
+  else music.start();
+  musicWanted = music.playing;
+  try {
+    localStorage.setItem(MUSIC_KEY, musicWanted ? 'on' : 'off');
+  } catch {}
+  renderMusicLabels();
+}
+
+$('music').addEventListener('click', toggleMusic);
+
+// Browsers only allow sound after the first action on the page.
+function startMusicOnce(event) {
+  window.removeEventListener('pointerdown', startMusicOnce);
+  window.removeEventListener('keydown', startMusicOnce);
+  if (event.target?.closest?.('#music, #band-music')) return;
+  if (musicWanted && !music.playing) music.start();
+  renderMusicLabels();
+}
+window.addEventListener('pointerdown', startMusicOnce);
+window.addEventListener('keydown', startMusicOnce);
+
+const bandDialog = createBandDialog({ el, music, renderMusicButton: toggleMusic });
+
 function staticText() {
   document.documentElement.lang = getLang();
   document.title = t('title');
@@ -70,6 +111,8 @@ function staticText() {
   $('terms-link').textContent = t('terms');
   $('privacy-link').textContent = t('privacy');
   panel.dataset.empty = t('panelHint');
+  renderMusicLabels();
+  renderWalkLabels();
   $('how-title').textContent = t('howTitle');
   clear($('how-steps'), ...[1, 2, 3].map((step) => el('div', { className: 'how-step' },
     el('h3', { textContent: t(`how${step}Title`) }),
@@ -103,7 +146,7 @@ function staticText() {
 
 function renderFreeCount() {
   if (!state) return;
-  const graves = state.plots.filter((plot) => !plot.ad);
+  const graves = state.plots.filter((plot) => !plot.ad && !plot.feature);
   const free = graves.filter((plot) => !plot.taken).length;
   $('free-count').textContent = config && !config.ordersOpen
     ? t('betaCount', { taken: graves.length - free })
@@ -143,6 +186,10 @@ function showPlot(index) {
     graveDialog.showCrypt(plot.ad);
     return;
   }
+  if (plot.feature) {
+    showFeature(plot.feature);
+    return;
+  }
   if (plot.grave) {
     clear(panel);
     graveDialog.showViewer(index);
@@ -157,6 +204,27 @@ function showPlot(index) {
     return;
   }
   showOrderForm(plot, n);
+}
+
+function showFeature(feature) {
+  view = 'feature';
+  if (feature === 'stage') {
+    clear(panel);
+    bandDialog.open();
+  } else if (feature === 'shop') {
+    clear(panel,
+      el('h2', { textContent: t('shopTip') }),
+      el('p', { textContent: config.ordersOpen ? t('shopOpen') : t('shopBeta') }),
+      config.donateUrl && !config.ordersOpen ? el('a', { className: 'button donate', href: config.donateUrl, target: '_blank', rel: 'noopener', textContent: t('donate') }) : null);
+  } else if (feature === 'well') {
+    const joke = el('p', { className: 'epitaph', textContent: randomJoke() });
+    clear(panel,
+      el('h2', { textContent: t('wellTip') }),
+      joke,
+      el('button', { type: 'button', className: 'ghost', textContent: t('wellMore'), on: { click: () => { joke.textContent = randomJoke(); } } }));
+  } else {
+    clear(panel, el('h2', { textContent: t('pathTip') }), el('p', { textContent: t('pathText') }));
+  }
 }
 
 function showOrderForm(plot, n) {
@@ -335,12 +403,85 @@ canvas.addEventListener('click', (event) => {
   if (index !== null) showPlot(index);
 });
 
+function tipFor(index) {
+  const plot = state?.plots[index];
+  if (!plot) return null;
+  const number = t('plotNumber', { n: index + 1 });
+  if (plot.feature) return { title: t(`${plot.feature}Tip`) };
+  if (plot.ad) {
+    const { row, col } = state.ads.find((item) => item.id === plot.ad);
+    const owner = state.plots[row * state.grid.cols + col].grave?.name;
+    return { title: owner ?? t('cryptHeading'), note: t('plotNumber', { n: row * state.grid.cols + col + 1 }) };
+  }
+  if (plot.grave) return { title: plot.grave.name, note: number };
+  return plot.taken ? { title: t('plotTaken'), note: number } : { title: t('freeTip', { n: index + 1 }) };
+}
+
+const mapTip = $('map-tip');
 canvas.addEventListener('pointermove', (event) => {
   const index = scene.plotAt(event.clientX, event.clientY);
   scene.setHover(index);
   canvas.style.cursor = index === null ? 'default' : 'pointer';
+  const tip = index === null ? null : tipFor(index);
+  mapTip.hidden = !tip || event.pointerType !== 'mouse';
+  if (mapTip.hidden) return;
+  clear(mapTip, tip.title, tip.note ? el('small', { textContent: ` ${tip.note}` }) : null);
+  mapTip.style.left = `${event.clientX}px`;
+  mapTip.style.top = `${event.clientY}px`;
 });
-canvas.addEventListener('pointerleave', () => scene.setHover(null));
+canvas.addEventListener('pointerleave', () => {
+  scene.setHover(null);
+  mapTip.hidden = true;
+});
+
+const walker = createWalker({
+  scene,
+  api,
+  getState: () => state,
+  onNear: renderNear,
+  onMove: (col, row) => {
+    const [x, y] = scene.shareOf(col, row);
+    mapWrap.scrollLeft = x * canvas.offsetWidth - mapWrap.clientWidth / 2;
+    mapWrap.scrollTop = y * canvas.offsetHeight - mapWrap.clientHeight / 2;
+  },
+});
+
+function renderNear(index) {
+  const near = $('near');
+  const plot = index === null ? null : state.plots[index];
+  near.hidden = !plot;
+  if (!plot) return;
+  const tip = tipFor(index);
+  clear(near,
+    el('h3', { textContent: tip.note ? `${tip.title} · ${tip.note}` : tip.title }),
+    plot.grave?.epitaph ? el('p', { textContent: `« ${plot.grave.epitaph} »` }) : null,
+    el('button', { type: 'button', textContent: t('walkOpen'), on: { click: () => showPlot(index) } }));
+}
+
+function renderWalkLabels() {
+  $('walk').textContent = walker.walking ? t('walkStop') : t('walkStart');
+  $('walk-hint').textContent = t('walkHint');
+  $('walk-hint').hidden = !walker.walking;
+  $('walk-pad').hidden = !walker.walking;
+}
+
+$('walk').addEventListener('click', () => {
+  walker.setWalking(!walker.walking);
+  $('walk').blur();
+  renderWalkLabels();
+});
+
+window.addEventListener('keydown', (event) => {
+  if (event.key.toLowerCase() !== 'e' && event.key.toLowerCase() !== 'у') return;
+  if (!walker.walking || walker.isTyping(event) || walker.nearPlot === null) return;
+  showPlot(walker.nearPlot);
+});
+
+for (const button of document.querySelectorAll('#walk-pad button')) {
+  const { key } = button.dataset;
+  button.addEventListener('pointerdown', () => walker.press(key, true));
+  for (const name of ['pointerup', 'pointerleave', 'pointercancel']) button.addEventListener(name, () => walker.press(key, false));
+}
 
 $('login').addEventListener('submit', (event) => {
   event.preventDefault();
